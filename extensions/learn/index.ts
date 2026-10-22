@@ -13,6 +13,7 @@ import { buildBrief, closeNode, currentBeat, LESSON_START, startLesson } from ".
 import { cancelGate, handleGateAnswer, startGate } from "../../src/learn/gate.ts";
 import { planTopic } from "../../src/learn/planning.ts";
 import { LearnRuntime } from "../../src/learn/runtime.ts";
+import { reviewTopicBeats } from "../../src/learn/rewrite-beats.ts";
 import { registerTeacherTools, unplace } from "../../src/learn/tools.ts";
 import { installActivityWidget, refreshProgressWidget } from "../../src/learn/widgets.ts";
 import { writeGraphPage } from "../../src/map/graph-page.ts";
@@ -437,6 +438,17 @@ export default function learn(pi: ExtensionAPI) {
 			if (rt.gateRun) cancelGate(rt, ctx);
 			await unplace(rt, ctx, node.id);
 			syncTools();
+		},
+	});
+
+	pi.registerCommand("check-beats", {
+		description: "Check a topic's remaining lesson beats and rewrite any that read as exercises or give away results",
+		getArgumentCompletions: (prefix) => rt.store.listTopics().filter((t) => t.slug.startsWith(prefix)).map((t) => ({ value: t.slug, label: t.slug })),
+		handler: async (args, ctx) => {
+			const topic = args.trim() ? rt.store.getTopic(args.trim()) : rt.activeTopic();
+			if (!topic) return ctx.ui.notify("No topic. Start one with /learn.", "info");
+			await ctx.waitForIdle();
+			await reviewTopicBeats(rt, ctx, topic);
 		},
 	});
 

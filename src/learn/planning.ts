@@ -27,6 +27,7 @@ import type { Check, ChoiceCheck, KNode, LadderRung, NumericCheck, SelfReport, S
 import { showChoice } from "../ui/choice.ts";
 import { showPager } from "../ui/pager.ts";
 import { mathText, wrapLines } from "../ui/text.ts";
+import { type BeatRef, type BeatVerdict, beatProblem, beatWarnings, checkBeats, isFlagged } from "./beat-check.ts";
 import { startLesson } from "./lesson.ts";
 import type { LearnRuntime } from "./runtime.ts";
 import { refreshProgressWidget } from "./widgets.ts";
@@ -265,6 +266,38 @@ async function draftPlan(rt: LearnRuntime, ctx: ExtensionContext, goal: string, 
 	return output;
 }
 
+/** Beats of the nodes the plan will teach. */
+function planBeats(plan: PlanOut): BeatRef[] {
+	return plan.nodes
+		.filter((n) => n.status === "new")
+		.flatMap((n) => n.outline.map((b, index) => ({ node: n.id, title: n.title, index, point: b.point })));
+}
+
+/** Jev's verdict on each taught beat, cached by text so revisions only re-check what changed. */
+async function judgeBeats(ctx: ExtensionContext, plan: PlanOut, cache: Map<string, BeatVerdict>): Promise<BeatVerdict[]> {
+	const beats = planBeats(plan);
+	const key = (b: BeatRef) => `${b.title}\n${b.point}`;
+	const fresh = beats.filter((b) => !cache.has(key(b)));
+	for (const v of (await checkBeats(ctx.modelRegistry, fresh)) ?? []) cache.set(key(v), v);
+	return beats.flatMap((b) => {
+		const v = cache.get(key(b));
+		return v ? [{ ...v, node: b.node, index: b.index }] : [];
+	});
+}
+
+/** Send beats that aren't a single general idea back to the planner, at most twice, before any gates are written. */
+async function repairBeats(rt: LearnRuntime, ctx: ExtensionContext, goal: string, brief: string, strands: StrandPlacement[], plan: PlanOut, cache: Map<string, BeatVerdict>): Promise<PlanOut> {
+	for (let round = 0; round < 2; round++) {
+		const flagged = (await judgeBeats(ctx, plan, cache)).filter(isFlagged);
+		if (flagged.length === 0) break;
+		const text =
+			"Some beats break the outline rules. Rewrite only these so each states one general idea; keep every other part of the plan unchanged:\n" +
+			flagged.map((v) => `- ${beatProblem(v)}`).join("\n");
+		plan = await draftPlan(rt, ctx, goal, brief, strands, { previous: plan, text });
+	}
+	return plan;
+}
+
 /** Ask Jev whether new nodes duplicate existing ones, and reuse the existing id when it's confident. */
 async function matchExisting(rt: LearnRuntime, ctx: ExtensionContext, plan: PlanOut): Promise<string[]> {
 	const existing = [...rt.store.loadNodes().values()];
@@ -474,7 +507,8 @@ async function runPlanning(rt: LearnRuntime, ctx: ExtensionCommandContext, reque
 
 	const strands = await placement(rt, ctx, goal.goal, brief);
 
-	let plan = await draftPlan(rt, ctx, goal.goal, brief, strands);
+	const beatCache = new Map<string, BeatVerdict>();
+	let plan = await repairBeats(rt, ctx, goal.goal, brief, strands, await draftPlan(rt, ctx, goal.goal, brief, strands), beatCache);
 	const renamed = await matchExisting(rt, ctx, plan).catch(() => []);
 	if (renamed.length > 0) rt.note(`Reusing nodes you already have: ${renamed.join("; ")}.`);
 	let draft = assemble(rt, plan, goal.slug, new Map());
@@ -502,7 +536,8 @@ async function runPlanning(rt: LearnRuntime, ctx: ExtensionCommandContext, reque
 		if (result.errors.length > 0) {
 			rt.note(`The plan still has problems:\n${result.errors.map((e) => `- ${e}`).join("\n")}`, "warning");
 		}
-		await showPager(ctx, `Plan: ${goal.title}`, (w) => planLines(rt, draft, goal.slug, goal.title, goal.goal, result.warnings, ctx.ui.theme, w));
+		const warnings = [...result.warnings, ...beatWarnings(await judgeBeats(ctx, plan, beatCache))];
+		await showPager(ctx, `Plan: ${goal.title}`, (w) => planLines(rt, draft, goal.slug, goal.title, goal.goal, warnings, ctx.ui.theme, w));
 		const options = result.errors.length > 0 ? ["Request changes", "Edit a gate", "View plan again", "Cancel"] : ["Approve and start", "Request changes", "Edit a gate", "View plan again", "Cancel"];
 		const pick = await ctx.ui.select("Plan review", options);
 		if (pick === "Approve and start") break;

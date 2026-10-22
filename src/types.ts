@@ -173,7 +173,8 @@ export type EvidenceKind =
 	| "state"
 	| "placement"
 	| "lesson_summary"
-	| "test_out";
+	| "test_out"
+	| "outline_rewrite";
 
 export interface Evidence {
 	at: string;

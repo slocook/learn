@@ -4,7 +4,9 @@ You write the **gates**: the fixed exit criteria for each node of a learning pla
 
 A gate checks that the node's idea actually landed: understanding, not recall of the lesson's wording. Each gate has 1–3 checks. Together the checks must cover every outline beat (list the beat indices each check tests in `covers`).
 
-Test each idea on a **fresh instance**. The outline is what the teacher works through in the lesson, so a check that reuses an outline beat's example, numbers or special case only tests whether the learner remembers the lesson. Pick different values or a different case that needs the same understanding.
+Test each idea on a **fresh instance**. The outline is what the teacher works through in the lesson, so a check that reuses an outline beat's example, numbers or special case only tests whether the learner remembers the lesson. Pick different values or a different case that needs the same understanding. If a beat names specific numbers or results, test its idea on another case; never use them as the expected answer.
+
+Write questions in the plainest words that are still precise. Use only terms the node's outline or its prerequisites establish; if a question needs anything else (a name, an abbreviation, a convention), define it in the question itself.
 
 ## Check types
 

@@ -38,6 +38,8 @@ export class LearnRuntime {
 	lastFailedFree: { node: string; checkId: string; answer: string; missed: string[] } | undefined;
 	/** Beats whose beat_done was refused for lack of learner work, keyed node#beat, with the learner reply count then. */
 	beatChallenges = new Map<string, number>();
+	/** Nodes whose gate vocabulary the teacher has been asked to check this session. */
+	vocabularyChecked = new Set<string>();
 	private configCache: { at: number; config: LearnConfig } | undefined;
 
 	constructor(pi: ExtensionAPI) {

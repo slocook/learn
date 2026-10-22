@@ -9,10 +9,12 @@ import { resolveRoleModel, runAgent } from "../agents/runner.ts";
 import { DiagramResultSchema, ResearchSchema } from "../agents/schemas.ts";
 import { webTools } from "../agents/tools/web.ts";
 import { canTransition, transition } from "../graph/state.ts";
+import type { KNode } from "../types.ts";
 import { diagramTools } from "../viz/tools.ts";
 import { beatExchange, learnerEngaged } from "./engagement.ts";
 import { closeNode, currentBeat, refreshTopicFiles, startLesson } from "./lesson.ts";
 import type { LearnRuntime } from "./runtime.ts";
+import { nodeTranscript, unexplainedTerms } from "./vocabulary.ts";
 import { refreshProgressWidget } from "./widgets.ts";
 
 interface ProgressDetails {
@@ -163,12 +165,57 @@ export function registerTeacherTools(pi: ExtensionAPI, rt: LearnRuntime): void {
 			label: "offer gate",
 			description: "Offer the learner the gate for the current node. If they accept, it starts after your turn ends.",
 			promptSnippet: "offer_gate: offer the node's gate when all beats are done (or the learner asks).",
-			parameters: Type.Object({}),
-			async execute(_id, _params, _signal, _onUpdate, ctx) {
+			parameters: Type.Object({
+				vocabulary: Type.Optional(
+					Type.Array(
+						Type.Object({
+							term: Type.String(),
+							status: Type.Union([Type.Literal("explained"), Type.Literal("prerequisite"), Type.Literal("everyday"), Type.Literal("not_yet")]),
+						}),
+						{ description: "Every technical term, name, abbreviation and symbol the gate questions use, and whether the learner has had it explained." },
+					),
+				),
+			}),
+			async execute(_id, params, _signal, _onUpdate, ctx) {
 				const lesson = rt.activeLesson();
 				if (!lesson?.topic.lesson) return noLesson();
 				const { node, topic } = lesson;
 				const ready = currentBeat(node, topic.lesson!) >= node.outline.length;
+				// Once per node, the teacher must account for every term the gate uses before the learner sees it.
+				if (!rt.vocabularyChecked.has(node.id)) {
+					const terms = params.vocabulary ?? [];
+					if (terms.length === 0) {
+						return {
+							content: [
+								{
+									type: "text",
+									text:
+										"Not offered yet. Call offer_gate again with `vocabulary`: every technical term, name, abbreviation and symbol the gate questions use, each with its status. " +
+										"`explained` only if you told the learner what it means in plain words earlier in this conversation (merely using the word doesn't count); `prerequisite` if they met it in a prerequisite node; `everyday` for ordinary language; otherwise `not_yet`.",
+								},
+							],
+							details: {},
+						};
+					}
+					// Verify the claims: "explained" against every lesson session for this node, "prerequisite" against the prerequisites.
+					const all = rt.store.loadNodes();
+					const prereqIds = new Set(node.requires.flatMap((id) => [id, ...(all.get(id)?.requires ?? [])]));
+					const prereqs = [...prereqIds].map((id) => all.get(id)).filter((n): n is KNode => n !== undefined);
+					const transcript = nodeTranscript(ctx.sessionManager.getBranch() as never, node.id);
+					const missing = await unexplainedTerms(ctx, terms, transcript, prereqs);
+					if (missing.length > 0) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Not offered yet: the learner hasn't had these explained: ${missing.join(", ")}. Explain them now, briefly, in plain words and without hinting at any answer; end your turn with a short question that uses them. Call offer_gate again after the learner replies.`,
+								},
+							],
+							details: {},
+						};
+					}
+					rt.vocabularyChecked.add(node.id);
+				}
 				const ok = ctx.hasUI
 					? await ctx.ui.confirm(`Take the gate for "${node.title}"?`, ready ? "All beats are done." : "Not every beat is done yet; misses won't use up attempts.")
 					: false;

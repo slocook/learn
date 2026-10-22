@@ -180,3 +180,14 @@ export const LabResultSchema = Type.Object({
 
 export type PlanNodeOut = Static<typeof PlanNodeSchema>;
 export type PlanOut = Static<typeof PlanSchema>;
+
+export const BeatRewriteSchema = Type.Object({
+	beats: Type.Array(
+		Type.Object({
+			node: Type.String({ description: "The node id." }),
+			index: Type.Integer({ minimum: 1, description: "1-based beat number; unchanged from the input." }),
+			point: Type.String({ description: "The rewritten beat: one general idea." }),
+			motivation: Type.String({ description: "Why the learner needs it now / how it could be discovered." }),
+		}),
+	),
+});
