@@ -1,8 +1,7 @@
-// pi's terminal LaTeX renderer handles single-letter accents (\vec{v} → v⃗) but prints
-// multi-letter ones as text ("overrightarrow(OP)"). Spread them over each letter instead.
+// pi's terminal LaTeX renderer handles single-letter accents (\bar{x} → x̄) but prints
+// multi-letter ones as text ("overline(AB)"). Spread bars over each letter instead.
 // Display-only: the model's text and markdown logs keep the original LaTeX.
 
-const ARROW = /\\(?:overrightarrow|vec)\s*\{\s*([A-Za-z0-9]{2,})\s*\}/g;
 const BAR = /\\(?:overline|bar)\s*\{\s*([A-Za-z0-9]{2,})\s*\}/g;
 
 /** Replace \boxed{…} with its contents (balanced braces). The terminal draws the box as [ … ], which reads like a matrix. */
@@ -30,9 +29,7 @@ function unbox(src: string): string {
 }
 
 export function terminalLatex(src: string): string {
-	return unbox(src)
-		.replace(ARROW, (_m, letters: string) => [...letters].map((c) => `\\vec{${c}}`).join(""))
-		.replace(BAR, (_m, letters: string) => [...letters].map((c) => `\\bar{${c}}`).join(""));
+	return unbox(src).replace(BAR, (_m, letters: string) => [...letters].map((c) => `\\bar{${c}}`).join(""));
 }
 
 /**

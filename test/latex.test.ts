@@ -3,17 +3,17 @@ import { test } from "node:test";
 import { renderLatex } from "@earendil-works/pi-tui";
 import { terminalLatex, terminalLatexInMarkdown } from "../src/ui/latex.ts";
 
-test("multi-letter accents are spread over each letter so the terminal can draw them", () => {
-	assert.equal(terminalLatex("\\overrightarrow{OP} = a\\hat{x}"), "\\vec{O}\\vec{P} = a\\hat{x}");
+test("multi-letter bars are spread over each letter; arrows are left as written", () => {
 	assert.equal(terminalLatex("\\overline{AB}"), "\\bar{A}\\bar{B}");
+	assert.doesNotMatch(renderLatex(terminalLatex("\\overline{AB}"))!, /overline/);
+	assert.equal(terminalLatex("\\overrightarrow{OP} = a\\hat{x}"), "\\overrightarrow{OP} = a\\hat{x}");
 	assert.equal(terminalLatex("\\vec{v}"), "\\vec{v}");
-	assert.doesNotMatch(renderLatex(terminalLatex("\\overrightarrow{OP}"))!, /overrightarrow/);
 });
 
 test("only math spans are rewritten", () => {
-	assert.equal(terminalLatexInMarkdown("`\\vec{OP}` and $\\vec{OP}$"), "`\\vec{OP}` and $\\vec{O}\\vec{P}$");
+	assert.equal(terminalLatexInMarkdown("`\\overline{AB}` and $\\overline{AB}$"), "`\\overline{AB}` and $\\bar{A}\\bar{B}$");
 	assert.equal(terminalLatexInMarkdown("$$\\overline{AB}$$"), "$$ \\bar{A}\\bar{B} $$");
-	assert.equal(terminalLatexInMarkdown("\\(\\vec{OP}\\)"), "\\(\\vec{O}\\vec{P}\\)");
+	assert.equal(terminalLatexInMarkdown("\\(\\overline{AB}\\)"), "\\(\\bar{A}\\bar{B}\\)");
 });
 
 test("display math is joined onto one line so a lone '=' can't become a markdown heading", () => {

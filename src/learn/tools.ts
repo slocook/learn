@@ -10,6 +10,7 @@ import { DiagramResultSchema, ResearchSchema } from "../agents/schemas.ts";
 import { webTools } from "../agents/tools/web.ts";
 import { canTransition, transition } from "../graph/state.ts";
 import { diagramTools } from "../viz/tools.ts";
+import { beatExchange, learnerEngaged } from "./engagement.ts";
 import { closeNode, currentBeat, refreshTopicFiles, startLesson } from "./lesson.ts";
 import type { LearnRuntime } from "./runtime.ts";
 import { refreshProgressWidget } from "./widgets.ts";
@@ -46,7 +47,7 @@ export function registerTeacherTools(pi: ExtensionAPI, rt: LearnRuntime): void {
 		defineTool({
 			name: "beat_done",
 			label: "beat done",
-			description: "Mark an outline beat of the current lesson as established. Beats go in order; call this once a beat has clearly landed.",
+			description: "Mark an outline beat of the current lesson as established. Beats go in order; call this once the learner has shown it landed by doing something with it (answering, taking a step, explaining it back). Agreement alone is refused.",
 			promptSnippet: "beat_done: mark the current lesson beat as established (in order).",
 			parameters: Type.Object({
 				beat: Type.Integer({ minimum: 1, description: "1-based beat number from the outline." }),
@@ -67,9 +68,34 @@ export function registerTeacherTools(pi: ExtensionAPI, rt: LearnRuntime): void {
 							: `Beats go in order: beat ${expected + 1} ("${node.outline[expected]!.point}") comes first.`,
 					);
 				}
+				// Agreement isn't evidence. Refuse once if the learner has only listened; after they reply, let it through.
+				const exchange = beatExchange(ctx.sessionManager.getBranch() as never);
+				const replies = exchange.filter((t) => t.who !== "teacher").length;
+				const key = `${node.id}#${i}`;
+				const challenged = rt.beatChallenges.get(key);
+				let engaged: boolean | undefined;
+				if (challenged === undefined) {
+					engaged = await learnerEngaged(ctx, node.outline[i]!.point, exchange);
+					if (engaged === false) {
+						rt.beatChallenges.set(key, replies);
+						throw new Error(
+							`Not yet: since the last beat the learner has only listened or agreed, which doesn't show beat ${params.beat} landed. ` +
+								"End this turn with a question that makes them use it: predict what happens, take the next step, compute a small case, or explain it back. Not \"does that make sense?\". " +
+								"Once they reply, call beat_done again and it will be accepted.",
+						);
+					}
+				} else if (replies <= challenged) {
+					throw new Error(`Wait for the learner's reply to your question before calling beat_done for beat ${params.beat} again.`);
+				}
+				rt.beatChallenges.delete(key);
 				lp.beats_done.push(i);
 				rt.store.saveTopic(topic);
-				rt.store.appendEvidence({ kind: "beat", node: node.id, topic: topic.slug, data: { beat: params.beat, note: params.note } });
+				rt.store.appendEvidence({
+					kind: "beat",
+					node: node.id,
+					topic: topic.slug,
+					data: { beat: params.beat, note: params.note, ...(challenged !== undefined ? { challenged: true } : {}) },
+				});
 				refreshProgressWidget(rt, ctx);
 				const next = currentBeat(node, lp);
 				const text =

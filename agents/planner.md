@@ -14,7 +14,7 @@ A node is **one idea or skill**, learnable in one focused lesson and checkable b
 - `id`: a lowercase slug named for the idea, not the topic or the lesson number: `linalg/jacobian`, `ik/two-link-solutions`, not `ik/lesson-3`. Use a short subject prefix so other topics can reuse the node.
 - `title`: a short name for the idea, at most about 8 words, as the learner would say it: "Two elbow solutions for 2-link IK", "atan2 keeps the quadrant". The full claim goes in the outline. Titles appear on the progress map, so they must scan at a glance.
 - `kind`: `concept` (an idea), `derivation` (a result derived step by step), `skill` (something the learner does, e.g. implements).
-- `outline`: 2–5 **beats**, each a single point to establish in order, with a `motivation`: why the learner needs it now, or how they could have discovered it. More than 5 beats means the node is too big: split it.
+- `outline`: 2–5 **beats**, each a single point to establish in order, with a `motivation`: why the learner needs it now, or how they could have discovered it. State the idea, not an exercise: "the knee limit can discard a whole bending branch", not "at (1,1), the limit 0 ≤ q2 ≤ π retains only one branch". The gate writer tests each beat on its own instance. More than 5 beats means the node is too big: split it.
 - `requires`: the node's direct prerequisites only.
 
 Sizing: if a node's gate would need more than 3 questions, split it. If a node is trivially implied by its prerequisite, merge it into that prerequisite.

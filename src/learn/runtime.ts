@@ -36,6 +36,8 @@ export class LearnRuntime {
 	pendingGate: string | undefined;
 	/** Last failed free-answer grading, for /dispute. */
 	lastFailedFree: { node: string; checkId: string; answer: string; missed: string[] } | undefined;
+	/** Beats whose beat_done was refused for lack of learner work, keyed node#beat, with the learner reply count then. */
+	beatChallenges = new Map<string, number>();
 	private configCache: { at: number; config: LearnConfig } | undefined;
 
 	constructor(pi: ExtensionAPI) {
